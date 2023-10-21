@@ -2,13 +2,12 @@
 
 I am developing a password manager to assist in securely storing passwords on a local computer. With the increasing number of online accounts, it can be challenging to remember all passwords. The password manager requires only one master password to decrypt all stored passwords. This project is currently in progress and not yet complete. While there are many existing password managers, this one is my personal creation for enjoyment.
 
-
 ## Setup the program
+
 ```bash
 # Run this command to install all requirements for this program to run
 pip install -r requirements.txt
 ```
-
 
 ## Commands
 
@@ -60,4 +59,3 @@ python main.py remove-vault --name MyAccounts
 python main.py list-vaults
 [-] No vaults found! 
 ```
-
