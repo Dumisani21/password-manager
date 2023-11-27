@@ -1,17 +1,14 @@
-from cli_commands import *
 from database import *
 from base.base import Database
 from rich import print
 import click
-# import bcrypt
 import getpass
-import hashlib
 import os
 import sys, getpass
 import string, random
-import cryptography.fernet as Fernet
 from security.secure import *
 from printTable import display
+import pyperclip
 
 
 # Setup the database
@@ -106,17 +103,14 @@ def empty_field(*fields):
 
 @click.command(help='Create a new user')
 @click.option('--username','-u', help='Username', required=True)
-@click.option('--password','-p', help='Password', required=True)
 @click.option('--website','-w', help='Website', required=True)
 @click.option('--vault','-v', help='Vault name', required=True)
-def create(username, password, website, vault):
+def create(username, website, vault):
     username = username.strip()
-    password = password.strip()
     website = website.strip()
     vault = vault.strip()
-    print(username, password, website, vault)
 
-    if empty_field(username, password, website, vault):
+    if empty_field(username, website, vault):
         print("[red][-] required input flied's cannot be empty! [/red]")
         sys.exit()
     else:
@@ -127,6 +121,17 @@ def create(username, password, website, vault):
             else:
                 mp = getpass.getpass("Enter your master password: ")
                 if verify_master_password(mp, HASHED_MASTER_PASSWORD):
+                    
+                    while True:
+                        password = getpass.getpass("Enter your password: ")
+                        confirm = getpass.getpass("Confirm your password: ")
+                        
+                        if password == confirm:
+                            break
+                        else:
+                            print("Please ensure your passwords match!")
+
+
                     salt = os.urandom(16)
                     encrypted_password = encrypt_and_store_key(mp, password, salt)
                     id = gen_id()
@@ -144,8 +149,9 @@ def create(username, password, website, vault):
 
 @click.command(help='List all vault passwords')
 @click.option('--vault','-v', help='Vault name', required=True)
-@click.option('--unmask','-u', help='Unmask passwords', is_flag=True, required=False, default=False)
-def list_psw(vault, unmask=False):
+# @click.option('--unmask','-u', help='Unmask passwords', is_flag=True, required=False, default=False)
+@click.option('--copy','-c', help='Copies password', is_flag=True, required=False, default=False)
+def list_psw(vault, copy=False):
     vault = vault.strip()
     if vault == "":
         print("[red][-] Vault name cannot be empty! [/red]")
@@ -156,23 +162,35 @@ def list_psw(vault, unmask=False):
             if data == None or len(data) == 0:
                 print("[red][-] No passwords found! [/red]")
             else:
-                if unmask:
+                if copy:
                     mp = getpass.getpass("Enter your master password: ")
                     if verify_master_password(mp, HASHED_MASTER_PASSWORD):
                         data = [[str(row[0]), row[2], row[3], decrypt_key(mp, row[4], row[5])] for row in data]
-                        display(
-                            { 
-                                "columns": ["ID", "Username", "Website", "Password"],
-                                "rows": data
-                            }
-                        )
+                    
+                        def isInt(id):
+                            try:
+                                int(id)
+                                return True
+                            except:
+                                return False
+
+                        while True:
+                            id = input("Enter the id for the password to copy: ").strip()
+                            if not isInt(id):
+                                print("[red][-] Please enter a valid integer! [/red]")
+                            elif (int(id) > len(data)):
+                                print("[red][-] Id out of range! [/red]")
+                            else:
+                                id = int(id) - 1
+                                break
+                        pyperclip.copy(data[id][3])
+                        print("[green][+] Your password has been copied to your clip board! [/green]")
+
                     else:
                         print("[red][-] Master password is incorrect! [/red]")
                         sys.exit()
                 else:
                     
-                    # for row in data:
-                    #     print(row[4])
                     data = [[str(row[0]), row[2], row[3], "********"] for row in data]
                     
                     display(
@@ -184,7 +202,6 @@ def list_psw(vault, unmask=False):
         else:
             print("[red][-] Vault does not exist! [/red]")
             sys.exit()
-
 
 @click.command(help='Remove a user')
 def remove():
