@@ -1,4 +1,3 @@
-from database import *
 from base.base import Database
 from rich import print
 import click
@@ -6,17 +5,13 @@ import getpass
 import os
 import sys, getpass
 import string, random
+from security.fetch_settings import fetch_pass, fetch_db_location, check_main_dir
 from security.secure import *
 from printTable import display
 import pyperclip
 
-
-# Setup the database
-# if not os.path.exists("database/psw_manager.db"):
-#     database = Database("database/psw_manager.db")
-#     database.create_table("users", "id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT")
-database = Database("database/psw_manager.db")
-HASHED_MASTER_PASSWORD = b'\x8b\x86\rlS\xd5b\x9eD\xb2D\x953LW\xb8\xaf\xa7.s\xe1\x1c`\xde\x03R\xc5|\x08\xbd\xef\xb9n\xf1\xaf\xcbp\xf5L\x92\xa7\x97u\x02#\xf6\x1bK'
+if check_main_dir():
+    database = Database(fetch_db_location())
 
 # Verify the vault exists
 def verify_vault_exists(vault_name):
@@ -91,9 +86,9 @@ def remove_vault(name):
     name = name.strip()
     if name == "":
         print("[red][-] Vault name cannot be empty! [/red]")
-        sys.exit()
     else:
         database.drop_table(name)
+        print("[green][+] Vault Removed! [/green]")
 
 def empty_field(*fields):
     for field in fields:
@@ -112,7 +107,6 @@ def create(username, website, vault):
 
     if empty_field(username, website, vault):
         print("[red][-] required input flied's cannot be empty! [/red]")
-        sys.exit()
     else:
         if verify_vault_exists(vault):
             if verify_website_exists(website, vault):
@@ -120,7 +114,7 @@ def create(username, website, vault):
                 sys.exit()
             else:
                 mp = getpass.getpass("Enter your master password: ")
-                if verify_master_password(mp, HASHED_MASTER_PASSWORD):
+                if verify_master_password(mp, fetch_pass().encode('utf-8')):
                     
                     while True:
                         password = getpass.getpass("Enter your password: ")
@@ -141,11 +135,9 @@ def create(username, website, vault):
                     print("[green][+] Password created successfully! [/green]")
                 else:
                     print("[red][-] Master password is incorrect! [/red]")
-                    sys.exit()
         else:
             print("[red][-] Vault does not exist! [/red]")
-            sys.exit()
-
+            
 
 @click.command(help='List all vault passwords')
 @click.option('--vault','-v', help='Vault name', required=True)
@@ -164,7 +156,7 @@ def list_psw(vault, copy=False):
             else:
                 if copy:
                     mp = getpass.getpass("Enter your master password: ")
-                    if verify_master_password(mp, HASHED_MASTER_PASSWORD):
+                    if verify_master_password(mp, fetch_pass().encode('utf-8')):
                         data = [[str(row[0]), row[2], row[3], decrypt_key(mp, row[4], row[5])] for row in data]
                     
                         def isInt(id):
@@ -223,9 +215,8 @@ psw_manager.add_command(list_psw)
 
 
 if __name__ == '__main__':
-    psw_manager()
-    # if os.path.exists(os.path.join(getpass.getuser(), '.eagle_eye',"config.json")):
-    #     psw_manager()
-    # else:
-    #     print("[red][-] Please run setup.py first! [/red]")
-    #     sys.exit()
+    if check_main_dir():
+        psw_manager()   
+    else:
+        print("[red][-] Looks like your your configs are missing please run the setup file again [/red]")
+        sys.exit()

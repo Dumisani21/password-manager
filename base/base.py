@@ -8,11 +8,12 @@ class Database:
 			self.c = self.conn.cursor()
 			# print(f"Connected to database '{db_name}'")
 		except sqlite3.Error as e:
-			# print(f"Error connecting to database: {e}")
+			print(f"Error connecting to database: {e}")
 			return None
 
 	def __del__(self):
-		self.conn.close()
+		if hasattr(self, 'conn'):
+			self.conn.close()
 
 	def create_table(self, table_name, attributes):
 		try:

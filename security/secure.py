@@ -1,7 +1,7 @@
 import hashlib
-import cryptography.fernet as Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+# import cryptography.fernet as Fernet
+# from cryptography.hazmat.primitives import hashes
+# from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from security.lock_master import SecureEncryptor
 import os
 
@@ -14,6 +14,7 @@ def encrypt_and_store_key(master_password, password, salt):
     encrypted = encryption.encrypt(password)
     return encrypted
     
+
  
 
 # Decrypt the encryption key (use the application key)
@@ -37,10 +38,17 @@ def verify_master_password(master_password, stored_hash):
 
 if __name__ == '__main__':
     salt = os.urandom(16)
-    master_password = "password"
+    master_password = "Google12345!"
     password = "password123123"
 
-    encrypted = encrypt_and_store_key(master_password, password, salt)
-    print(encrypted)
-    decrypted = decrypt_key(master_password, salt, encrypted)
-    print(decrypted)
+    # encrypted = encrypt_and_store_key(master_password, password, salt)
+    # print(encrypted)
+    # decrypted = decrypt_key(master_password, salt, encrypted)
+    # print(decrypted)
+
+    # Hashing Method
+    hashed_pass = hash_master_password(master_password)
+    if verify_master_password(master_password, hashed_pass):
+        print(True)
+    else:
+        print(False)
