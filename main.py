@@ -2,7 +2,6 @@ from database import *
 from base.base import Database
 from rich import print
 import click
-import getpass
 import os
 import sys, getpass
 import string, random
@@ -16,7 +15,7 @@ import pyperclip
 #     database = Database("database/psw_manager.db")
 #     database.create_table("users", "id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT")
 database = Database("database/psw_manager.db")
-HASHED_MASTER_PASSWORD = b'\x8b\x86\rlS\xd5b\x9eD\xb2D\x953LW\xb8\xaf\xa7.s\xe1\x1c`\xde\x03R\xc5|\x08\xbd\xef\xb9n\xf1\xaf\xcbp\xf5L\x92\xa7\x97u\x02#\xf6\x1bK'
+HASHED_MASTER_PASSWORD = b"\xe5\xc30\xdcjcZ\x04\xad\xef_\x02\xa95v\xd4\xac\xd35\x81\x80\xac\x96*Nq\xee,\xbfm\x1e\x8f\xa4\x81\nR$\xbd\xe2'\xfb\x05iN\xc7I\xe1\x14"
 
 # Verify the vault exists
 def verify_vault_exists(vault_name):
@@ -30,24 +29,37 @@ def verify_vault_exists(vault_name):
 # Verify the website exists
 def verify_website_exists(website, vault_name):
     data = database.view_data(vault_name, 'website', f"website='{website}'")
-    if data == None or len(data) == 0:
-        return False
-    elif data[0][0] == website:
+    return data and data[0][0] == website
+
+
+def is_int(value):
+    try:
+        int(value)
         return True
-    return False
+    except ValueError:
+        return False
+
+
+def get_valid_index(length, message):
+    while True:
+        id_str = input(message).strip()
+        if not is_int(id_str):
+            print("[red][-] Please enter a valid integer! [/red]")
+        elif int(id_str) > length:
+            print("[red][-] Id out of range! [/red]")
+        else:
+            return int(id_str)
+
+def empty_field(*fields):
+    return any(field == "" for field in fields)
 
 def gen_id():
     return "".join(random.choices(string.ascii_letters + string.digits, k = 18))
 
-def verify_id_exists(id, vault_name):
-    data = database.view_data(vault_name, 'id', f"id='{id}'")
-    if data == None or len(data) == 0:
-        return False
-    elif data[0][0] == id:
-        return True
-    return False
+def verify_id_exists(id_str, vault_name):
+    data = database.view_data(vault_name, 'id', f"id='{id_str}'")
+    return data and data[0][0] == id_str
 
-# Command line functions
 
 # Create a booking
 @click.group()
@@ -56,160 +68,165 @@ def psw_manager():
 
 
 @click.command(help='Create a new vault')
-@click.option('--name','-n', help='Vault name', required=True)
+@click.option('--name', '-n', help='Vault name', required=True)
 def vault(name):
-    """Create a new vault
-    args: name"""
     name = name.strip()
-    if name == "":
+    if not name:
         print("[red][-] Vault name cannot be empty! [/red]")
-        sys.exit()
-    else:
-        if verify_vault_exists(name):
-            print("[red][-] Vault already exists! [/red]")
-            sys.exit()
-        database.create_table(name, 'id TEXT PRIMARY KEY, username TEXT, website TEXT, password TEXT, salt TEXT')
-        print("[green][+] Vault created successfully! [/green]")
+        sys.exit(1)
+    if verify_vault_exists(name):
+        print("[red][-] Vault already exists! [/red]")
+        sys.exit(1)
+    database.create_table(name, 'id TEXT PRIMARY KEY, username TEXT, website TEXT, password TEXT, salt TEXT')
+    print("[green][+] Vault created successfully! [/green]")
 
 @click.command(help='List all vaults')
 def list_vaults():
-    database_table = list(filter(lambda column: column[0] != 'sqlite_sequence', database.get_database_tables()))
-
-    if database_table == None or len(database_table) == 0:
+    database_tables = list(filter(lambda column: column[0] != 'sqlite_sequence', database.get_database_tables()))
+    if not database_tables:
         print("[red][-] No vaults found! [/red]")
     else:
-        display(
-            {
-                "columns": ["Vaults"],
-                "rows": [[table[0]] for table in database_table]
-            }
-        )
+        display({"columns": ["Vaults"], "rows": [[table[0]] for table in database_tables]})
 
 @click.command(help='Remove a vault')
-@click.option('--name','-n', help='Vault name', required=True)
+@click.option('--name', '-n', help='Vault name', required=True)
 def remove_vault(name):
     name = name.strip()
-    if name == "":
+    if not name:
         print("[red][-] Vault name cannot be empty! [/red]")
-        sys.exit()
-    else:
-        database.drop_table(name)
+        sys.exit(1)
+    database.drop_table(name)
 
-def empty_field(*fields):
-    for field in fields:
-        if field == "":
-            return True
-    return False
+
 
 @click.command(help='Create a new user')
-@click.option('--username','-u', help='Username', required=True)
-@click.option('--website','-w', help='Website', required=True)
-@click.option('--vault','-v', help='Vault name', required=True)
+@click.option('--username', '-u', help='Username', required=True)
+@click.option('--website', '-w', help='Website', required=True)
+@click.option('--vault', '-v', help='Vault name', required=True)
 def create(username, website, vault):
     username = username.strip()
     website = website.strip()
     vault = vault.strip()
 
     if empty_field(username, website, vault):
-        print("[red][-] required input flied's cannot be empty! [/red]")
-        sys.exit()
+        print("[red][-] Required input fields cannot be empty! [/red]")
+        sys.exit(1)
+
+    if not verify_vault_exists(vault):
+        print("[red][-] Vault does not exist! [/red]")
+        sys.exit(1)
+
+    if verify_website_exists(website, vault):
+        print("[red][-] Website already exists! [/red]")
+        sys.exit(1)
+
+    master_password = getpass.getpass("Enter your master password: ")
+    if not verify_master_password(master_password, HASHED_MASTER_PASSWORD):
+        print("[red][-] Master password is incorrect! [/red]")
+        sys.exit(1)
+
+    password = get_password()
+    salt = os.urandom(16)
+    encrypted_password = encrypt_and_store_key(master_password, password, salt)
+    user_id = generate_unique_id(vault, verify_id_exists)
+    database.insert_data(vault, (user_id, username, website, encrypted_password, salt))
+    print("[green][+] Password created successfully! [/green]")
+
+def get_password():
+    while True:
+        password = getpass.getpass("Enter your password: ")
+        confirm = getpass.getpass("Confirm your password: ")
+        if password == confirm:
+            return password
+        print("Please ensure your passwords match!")
+
+def generate_unique_id(vault, verify_id_exists):
+    user_id = gen_id()
+    while verify_id_exists(user_id, vault):
+        user_id = gen_id()
+    return user_id
+
+
+
+@click.command(help="List all vault passwords")
+@click.option("--vault", "-v", help="Vault name", required=True)
+@click.option("--copy", "-c", help="Copies password", is_flag=True, default=False)
+def list_psw(vault, copy):
+    """
+    List all passwords in a vault.
+
+    Args:
+        vault (str): Name of the vault.
+        copy (bool): Whether to copy the password to the clipboard.
+    """
+    vault = vault.strip()
+    if not vault:
+        click.secho("[-] Vault name cannot be empty!", fg="red")
+        sys.exit(1)
+
+    if not verify_vault_exists(vault):
+        click.secho("[-] Vault does not exist!", fg="red")
+        sys.exit(1)
+
+    data = database.view_data(vault, columns="oid, *")
+    if not data:
+        click.secho("[-] No passwords found!", fg="red")
+        return
+
+    if copy:
+        master_password = getpass.getpass("Enter your master password: ")
+        if not verify_master_password(master_password, HASHED_MASTER_PASSWORD):
+            click.secho("[-] Master password is incorrect!", fg="red")
+            sys.exit(1)
+
+        data = [
+            [str(row[0]), row[2], row[3], decrypt_key(master_password, row[4], row[5])]
+            for row in data
+        ]
+
+        index = get_valid_index(len(data), "Enter the id for the password to copy: ") - 1
+        pyperclip.copy(data[index][3])
+        click.secho("[+] Your password has been copied to your clipboard!", fg="green")
     else:
-        if verify_vault_exists(vault):
-            if verify_website_exists(website, vault):
-                print("[red][-] Website already exists! [/red]")
-                sys.exit()
-            else:
-                mp = getpass.getpass("Enter your master password: ")
-                if verify_master_password(mp, HASHED_MASTER_PASSWORD):
-                    
-                    while True:
-                        password = getpass.getpass("Enter your password: ")
-                        confirm = getpass.getpass("Confirm your password: ")
-                        
-                        if password == confirm:
-                            break
-                        else:
-                            print("Please ensure your passwords match!")
+        data = [[str(row[0]), row[2], row[3], "********"] for row in data]
+        display({"columns": ["ID", "Username", "Website", "Password"], "rows": data})
 
 
-                    salt = os.urandom(16)
-                    encrypted_password = encrypt_and_store_key(mp, password, salt)
-                    id = gen_id()
-                    while verify_id_exists(id, vault):
-                        id = gen_id()
-                    database.insert_data(vault, (id, username, website, encrypted_password, salt))
-                    print("[green][+] Password created successfully! [/green]")
-                else:
-                    print("[red][-] Master password is incorrect! [/red]")
-                    sys.exit()
-        else:
-            print("[red][-] Vault does not exist! [/red]")
-            sys.exit()
 
-
-@click.command(help='List all vault passwords')
+@click.command(help='Remove a user')
 @click.option('--vault','-v', help='Vault name', required=True)
-# @click.option('--unmask','-u', help='Unmask passwords', is_flag=True, required=False, default=False)
-@click.option('--copy','-c', help='Copies password', is_flag=True, required=False, default=False)
-def list_psw(vault, copy=False):
+def remove(vault):
     vault = vault.strip()
     if vault == "":
         print("[red][-] Vault name cannot be empty! [/red]")
-        sys.exit()
-    else:
-        if verify_vault_exists(vault):
-            data = database.view_data(vault, columns="oid, *")
-            if data == None or len(data) == 0:
-                print("[red][-] No passwords found! [/red]")
-            else:
-                if copy:
-                    mp = getpass.getpass("Enter your master password: ")
-                    if verify_master_password(mp, HASHED_MASTER_PASSWORD):
-                        data = [[str(row[0]), row[2], row[3], decrypt_key(mp, row[4], row[5])] for row in data]
-                    
-                        def isInt(id):
-                            try:
-                                int(id)
-                                return True
-                            except:
-                                return False
+        sys.exit(1)
 
-                        while True:
-                            id = input("Enter the id for the password to copy: ").strip()
-                            if not isInt(id):
-                                print("[red][-] Please enter a valid integer! [/red]")
-                            elif (int(id) > len(data)):
-                                print("[red][-] Id out of range! [/red]")
-                            else:
-                                id = int(id) - 1
-                                break
-                        pyperclip.copy(data[id][3])
-                        print("[green][+] Your password has been copied to your clip board! [/green]")
-
-                    else:
-                        print("[red][-] Master password is incorrect! [/red]")
-                        sys.exit()
-                else:
-                    
-                    data = [[str(row[0]), row[2], row[3], "********"] for row in data]
-                    
-                    display(
-                        {
-                            "columns": ["ID", "Username", "Website", "Password"],
-                            "rows": data
-                        }
-                    )
+    if verify_vault_exists(vault):
+        data = database.view_data(vault, columns="oid, *")
+        if data == None or len(data) == 0:
+            print("[red][-] No passwords found! [/red]")
         else:
-            print("[red][-] Vault does not exist! [/red]")
-            sys.exit()
+            mp = getpass.getpass("Enter your master password: ")
+            if verify_master_password(mp, HASHED_MASTER_PASSWORD):
+                
+                data = [[str(row[0]), row[2], row[3], "********"] for row in data]
+                
+                display({ "columns": ["ID", "Username", "Website", "Password"],
+                        "rows": data })
 
-@click.command(help='Remove a user')
-def remove():
-    pass
+                index: int = get_valid_index(len(data), "Enter the id for the password to delete: ")
 
+                database.delete_data(vault, f"oid = {index}")
+                print("[green][+] Data username deleted! [/green]")
+
+                    
     
 @click.command(help='Edit a user')
 def edit(help='Edit a user'):
+    pass
+
+@click.command(help='Change master password')
+def change_master_password(help='Edit a user'):
     pass
 
 
@@ -220,6 +237,7 @@ psw_manager.add_command(vault)
 psw_manager.add_command(remove_vault)
 psw_manager.add_command(list_vaults)
 psw_manager.add_command(list_psw)
+psw_manager.add_command(change_master_password)
 
 
 if __name__ == '__main__':
